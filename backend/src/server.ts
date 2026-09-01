@@ -1,117 +1,35 @@
-import express from "express";
-import cors from "cors";
-import dotenv from "dotenv";
+import express from 'express'
+import type { ErrorRequestHandler } from 'express'
+import cors from 'cors'
+import dotenv from 'dotenv'
+import chatRoutes from './routes/chat.routes.js'
+import healthRoutes from './routes/health.routes.js'
+import { HttpError } from './utils/errors.js'
 
-import { streamChat } from "./services/openai.service.js";
-import { streamChat as streamChatGemini } from "./services/gemini.service.js";
+dotenv.config()
 
-dotenv.config();
+const app = express()
+const port = process.env.PORT ?? 3000
+const frontendOrigin = process.env.FRONTEND_ORIGIN ?? 'http://localhost:5173'
 
-const app = express();
+app.use(cors({ origin: frontendOrigin }))
+app.use(express.json())
 
-app.use(cors());
-app.use(express.json());
+app.use('/api', chatRoutes)
+app.use('/api', healthRoutes)
 
-app.post("/api/chat", async (req, res) => {
-  const { message } = req.body;
-
-  if (!message) {
-    return res.status(400).json({
-      error: "Message is required",
-    });
+const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
+  if (err instanceof HttpError) {
+    res.status(err.status).json({ error: err.message })
+    return
   }
 
-  try {
-    const stream = await streamChat(message);
+  console.error(err instanceof Error ? err.message : err)
+  res.status(500).json({ error: 'Internal server error' })
+}
 
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
+app.use(errorHandler)
 
-    for await (const event of stream) {
-      if (event.type === "response.output_text.delta") {
-        res.write(
-          `data: ${JSON.stringify({
-            type: "text",
-            value: event.delta,
-          })}\n\n`
-        );
-      }
-    }
-
-    res.write(
-      `data: ${JSON.stringify({
-        type: "done",
-      })}\n\n`
-    );
-
-    res.end();
-
-  } catch (error) {
-
-    console.error(error);
-
-    res.write(
-      `data: ${JSON.stringify({
-        type: "error",
-        message: "Something went wrong",
-      })}\n\n`
-    );
-
-    res.end();
-  }
-});
-
-app.post("/api/chat/gemini", async (req, res) => {
-  const { message } = req.body;
-
-  if (!message) {
-    return res.status(400).json({
-      error: "Message is required",
-    });
-  }
-
-  try {
-    const stream = await streamChatGemini(message);
-
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-
-    for await (const chunk of stream) {
-      if (chunk.text) {
-        res.write(
-          `data: ${JSON.stringify({
-            type: "text",
-            value: chunk.text,
-          })}\n\n`
-        );
-      }
-    }
-
-    res.write(
-      `data: ${JSON.stringify({
-        type: "done",
-      })}\n\n`
-    );
-
-    res.end();
-
-  } catch (error) {
-
-    console.error(error);
-
-    res.write(
-      `data: ${JSON.stringify({
-        type: "error",
-        message: "Something went wrong",
-      })}\n\n`
-    );
-
-    res.end();
-  }
-});
-
-app.listen(3000, () => {
-  console.log("Server running on http://localhost:3000");
-});
+app.listen(port, () => {
+  console.log(`Server running on http://localhost:${port}`)
+})

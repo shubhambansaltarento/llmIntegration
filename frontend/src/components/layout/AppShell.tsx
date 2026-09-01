@@ -1,6 +1,9 @@
 import Sidebar from './Sidebar'
 import Header from './Header'
+import MessageList from '../chat/MessageList'
+import ChatInput from '../chat/ChatInput'
 import './layout.css'
+import '../chat/chat.css'
 
 function AppShell() {
   return (
@@ -9,8 +12,9 @@ function AppShell() {
       <div class="main-area">
         <Header />
         <div class="content">
-          <p>Chat messages will appear here.</p>
+          <MessageList />
         </div>
+        <ChatInput />
       </div>
     </div>
   )
