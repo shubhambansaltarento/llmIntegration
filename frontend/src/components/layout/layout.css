@@ -1,0 +1,108 @@
+.app-shell {
+  display: flex;
+  height: 100vh;
+}
+
+.sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-right: 1px solid rgba(128, 128, 128, 0.3);
+  transition: width 0.15s ease;
+  overflow: hidden;
+}
+
+.sidebar--collapsed {
+  width: 56px;
+  padding: 16px 8px;
+}
+
+.sidebar__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sidebar__title {
+  font-size: 16px;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.sidebar__toggle {
+  cursor: pointer;
+}
+
+.sidebar__new-chat {
+  padding: 8px;
+  cursor: pointer;
+}
+
+.sidebar__search {
+  padding: 6px 8px;
+}
+
+.sidebar__conversations {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sidebar__conversation {
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar__conversation:hover {
+  background: rgba(128, 128, 128, 0.15);
+}
+
+.sidebar__conversation--active {
+  background: rgba(128, 128, 128, 0.25);
+  font-weight: 600;
+}
+
+.sidebar__empty {
+  opacity: 0.6;
+  font-size: 14px;
+}
+
+.sidebar__settings {
+  margin-top: auto;
+  padding: 8px;
+  cursor: pointer;
+}
+
+.main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.header {
+  padding: 16px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.3);
+}
+
+.header__title {
+  margin: 0;
+  font-size: 18px;
+}
+
+.content {
+  flex: 1;
+  padding: 16px;
+}
