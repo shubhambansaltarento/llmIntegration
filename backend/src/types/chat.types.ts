@@ -1,3 +1,5 @@
+import type { ErrorCode } from '../utils/errors.js'
+
 export type ChatRole = 'user' | 'assistant' | 'system'
 
 export interface ChatMessageInput {
@@ -22,9 +24,10 @@ export interface ChatResponseBody {
 
 export interface ErrorResponseBody {
   error: string
+  code: ErrorCode
 }
 
 export type ChatStreamEvent =
   | { type: 'text'; value: string }
   | { type: 'done' }
-  | { type: 'error'; message: string }
+  | { type: 'error'; message: string; code: ErrorCode }

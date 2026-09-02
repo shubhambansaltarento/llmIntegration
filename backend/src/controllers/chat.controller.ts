@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express'
 import type { ChatMessageInput, ChatRequestBody, ChatStreamEvent } from '../types/chat.types.js'
 import { getChatReply, streamChatReply } from '../services/chat.service.js'
-import { HttpError } from '../utils/errors.js'
+import { HttpError, codeForStatus } from '../utils/errors.js'
 
 const MAX_MESSAGE_LENGTH = 4000
 const VALID_ROLES = new Set(['user', 'assistant', 'system'])
@@ -56,6 +56,7 @@ export async function postChat(
   if (!messages) {
     res.status(400).json({
       error: `messages must be a non-empty array of { role, content } items, each with role in ${[...VALID_ROLES].join('|')} and non-empty content up to ${MAX_MESSAGE_LENGTH} characters`,
+      code: codeForStatus(400),
     })
     return
   }
@@ -78,6 +79,7 @@ export async function postChatStream(
   if (!messages) {
     res.status(400).json({
       error: `messages must be a non-empty array of { role, content } items, each with role in ${[...VALID_ROLES].join('|')} and non-empty content up to ${MAX_MESSAGE_LENGTH} characters`,
+      code: codeForStatus(400),
     })
     return
   }
@@ -113,8 +115,9 @@ export async function postChatStream(
       send({ type: 'done' })
     }
   } catch (error) {
+    const status = error instanceof HttpError ? error.status : 502
     const message = error instanceof HttpError ? error.message : 'The AI provider failed to generate a response'
-    send({ type: 'error', message })
+    send({ type: 'error', message, code: codeForStatus(status) })
   } finally {
     if (!res.writableEnded) {
       res.end()

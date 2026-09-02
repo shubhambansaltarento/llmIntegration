@@ -4,7 +4,7 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import chatRoutes from './routes/chat.routes.js'
 import healthRoutes from './routes/health.routes.js'
-import { HttpError } from './utils/errors.js'
+import { HttpError, codeForStatus } from './utils/errors.js'
 
 dotenv.config()
 
@@ -20,12 +20,12 @@ app.use('/api', healthRoutes)
 
 const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   if (err instanceof HttpError) {
-    res.status(err.status).json({ error: err.message })
+    res.status(err.status).json({ error: err.message, code: codeForStatus(err.status) })
     return
   }
 
   console.error(err instanceof Error ? err.message : err)
-  res.status(500).json({ error: 'Internal server error' })
+  res.status(500).json({ error: 'Internal server error', code: codeForStatus(500) })
 }
 
 app.use(errorHandler)
