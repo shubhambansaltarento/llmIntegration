@@ -21,8 +21,10 @@ export async function createChatCompletion(
   messages: ChatMessageInput[],
   env: Bindings,
 ): Promise<OpenAiCompletion> {
+  const client = getClient(env)
+
   try {
-    const response = await getClient(env).responses.create({
+    const response = await client.responses.create({
       model: env.OPENAI_MODEL ?? 'gpt-5.6-luna',
       input: messages,
     })
@@ -53,8 +55,10 @@ export async function* streamChatCompletion(
   signal: AbortSignal,
   env: Bindings,
 ): AsyncGenerator<string> {
+  const client = getClient(env)
+
   try {
-    const stream = await getClient(env).responses.create(
+    const stream = await client.responses.create(
       {
         model: env.OPENAI_MODEL ?? 'gpt-5.6-luna',
         input: messages,
