@@ -3,9 +3,11 @@ import Header from './Header'
 import MessageList from '../chat/MessageList'
 import ChatInput from '../chat/ChatInput'
 import { ToastViewport } from '../feedback/Toast'
+import ContextPanel from '../context/ContextPanel'
 import './layout.css'
 import '../chat/chat.css'
 import '../feedback/feedback.css'
+import '../context/context.css'
 
 function AppShell() {
   return (
@@ -18,6 +20,7 @@ function AppShell() {
         </div>
         <ChatInput />
       </div>
+      <ContextPanel />
       <ToastViewport />
     </div>
   )

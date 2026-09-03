@@ -1,0 +1,133 @@
+.context-panel {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 16px;
+  border-left: 1px solid rgba(128, 128, 128, 0.3);
+  transition: width 0.15s ease;
+  overflow: hidden;
+}
+
+.context-panel--collapsed {
+  width: 48px;
+  padding: 16px 8px;
+}
+
+.context-panel__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.context-panel--collapsed .context-panel__top {
+  justify-content: center;
+}
+
+.context-panel__title {
+  font-size: 16px;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.context-panel__toggle {
+  cursor: pointer;
+}
+
+.context-file-list__heading,
+.usage-stats__heading {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  margin: 0 0 8px;
+}
+
+.context-file-list__items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.context-file-list__empty {
+  opacity: 0.6;
+  font-size: 13px;
+}
+
+.context-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 6px;
+  background: rgba(128, 128, 128, 0.1);
+}
+
+.context-file__info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.context-file__name {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.context-file__meta {
+  font-size: 11px;
+  opacity: 0.6;
+  text-transform: uppercase;
+}
+
+.context-file__remove {
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.context-file__remove:hover {
+  opacity: 1;
+}
+
+.context-file-list__add {
+  margin-top: 8px;
+  padding: 8px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.usage-stats__list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.usage-stats__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.usage-stats__row dt {
+  opacity: 0.7;
+}
+
+.usage-stats__row dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
