@@ -1,21 +1,14 @@
 import OpenAI from 'openai'
 import { HttpError } from '../utils/errors.js'
 import type { ChatMessageInput } from '../types/chat.types.js'
+import type { Bindings } from '../types/env.js'
 
-let client: OpenAI | undefined
-
-function getClient(): OpenAI {
-  if (!client) {
-    const apiKey = process.env.OPENAI_API_KEY
-
-    if (!apiKey) {
-      throw new HttpError('OpenAI is not configured on the server', 500)
-    }
-
-    client = new OpenAI({ apiKey })
+function getClient(env: Bindings): OpenAI {
+  if (!env.OPENAI_API_KEY) {
+    throw new HttpError('OpenAI is not configured on the server', 500)
   }
 
-  return client
+  return new OpenAI({ apiKey: env.OPENAI_API_KEY })
 }
 
 export interface OpenAiCompletion {
@@ -26,10 +19,11 @@ export interface OpenAiCompletion {
 
 export async function createChatCompletion(
   messages: ChatMessageInput[],
+  env: Bindings,
 ): Promise<OpenAiCompletion> {
   try {
-    const response = await getClient().responses.create({
-      model: process.env.OPENAI_MODEL ?? 'gpt-5.6-luna',
+    const response = await getClient(env).responses.create({
+      model: env.OPENAI_MODEL ?? 'gpt-5.6-luna',
       input: messages,
     })
 
@@ -57,11 +51,12 @@ export async function createChatCompletion(
 export async function* streamChatCompletion(
   messages: ChatMessageInput[],
   signal: AbortSignal,
+  env: Bindings,
 ): AsyncGenerator<string> {
   try {
-    const stream = await getClient().responses.create(
+    const stream = await getClient(env).responses.create(
       {
-        model: process.env.OPENAI_MODEL ?? 'gpt-5.6-luna',
+        model: env.OPENAI_MODEL ?? 'gpt-5.6-luna',
         input: messages,
         stream: true,
       },

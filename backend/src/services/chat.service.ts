@@ -1,8 +1,12 @@
 import type { ChatMessageInput, ChatResponseBody } from '../types/chat.types.js'
+import type { Bindings } from '../types/env.js'
 import { createChatCompletion, streamChatCompletion } from './openai.service.js'
 
-export async function getChatReply(messages: ChatMessageInput[]): Promise<ChatResponseBody> {
-  const completion = await createChatCompletion(messages)
+export async function getChatReply(
+  messages: ChatMessageInput[],
+  env: Bindings,
+): Promise<ChatResponseBody> {
+  const completion = await createChatCompletion(messages, env)
 
   return {
     message: {
@@ -17,6 +21,7 @@ export async function getChatReply(messages: ChatMessageInput[]): Promise<ChatRe
 export function streamChatReply(
   messages: ChatMessageInput[],
   signal: AbortSignal,
+  env: Bindings,
 ): AsyncGenerator<string> {
-  return streamChatCompletion(messages, signal)
+  return streamChatCompletion(messages, signal, env)
 }

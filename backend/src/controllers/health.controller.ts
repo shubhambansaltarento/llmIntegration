@@ -1,5 +1,5 @@
-import type { Request, Response } from 'express'
+import type { Context } from 'hono'
 
-export function getHealth(_req: Request, res: Response) {
-  res.status(200).json({ status: 'ok', uptime: process.uptime() })
+export function getHealth(c: Context) {
+  return c.json({ status: 'ok', timestamp: new Date().toISOString() })
 }

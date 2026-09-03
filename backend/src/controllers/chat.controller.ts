@@ -1,16 +1,18 @@
-import type { Request, Response, NextFunction } from 'express'
+import type { Context } from 'hono'
+import { streamSSE } from 'hono/streaming'
 import type {
   ChatMessageInput,
-  ChatResponseBody,
   ChatRole,
   ChatStreamEvent,
-  ErrorResponseBody,
 } from '../types/chat.types.js'
+import type { Bindings } from '../types/env.js'
 import { getChatReply, streamChatReply } from '../services/chat.service.js'
 import { HttpError, codeForStatus } from '../utils/errors.js'
 
 const MAX_MESSAGE_LENGTH = 4000
 const VALID_ROLES: readonly ChatRole[] = ['user', 'assistant', 'system']
+
+type AppContext = Context<{ Bindings: Bindings }>
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -44,85 +46,47 @@ function validateMessages(body: unknown): ChatMessageInput[] | null {
   return normalized
 }
 
-export async function postChat(
-  // The body generic stops at `unknown`, not `ChatRequestBody`: Express
-  // performs no runtime validation matching that generic, so asserting
-  // ChatRequestBody here would be a claim the type checker can't back up -
-  // validateMessages() below is what actually establishes the shape.
-  req: Request<unknown, unknown, unknown>,
-  res: Response<ChatResponseBody | ErrorResponseBody>,
-  next: NextFunction,
-) {
-  const messages = validateMessages(req.body)
+const VALIDATION_ERROR_MESSAGE = `messages must be a non-empty array of { role, content } items, each with role in ${VALID_ROLES.join('|')} and non-empty content up to ${MAX_MESSAGE_LENGTH} characters`
+
+export async function postChat(c: AppContext) {
+  const body: unknown = await c.req.json().catch(() => null)
+  const messages = validateMessages(body)
 
   if (!messages) {
-    res.status(400).json({
-      error: `messages must be a non-empty array of { role, content } items, each with role in ${[...VALID_ROLES].join('|')} and non-empty content up to ${MAX_MESSAGE_LENGTH} characters`,
-      code: codeForStatus(400),
-    })
-    return
+    return c.json({ error: VALIDATION_ERROR_MESSAGE, code: codeForStatus(400) }, 400)
   }
 
-  try {
-    const reply = await getChatReply(messages)
+  const reply = await getChatReply(messages, c.env)
 
-    res.status(200).json(reply)
-  } catch (error) {
-    next(error)
-  }
+  return c.json(reply, 200)
 }
 
-export async function postChatStream(
-  req: Request<unknown, unknown, unknown>,
-  res: Response,
-) {
-  const messages = validateMessages(req.body)
+export async function postChatStream(c: AppContext) {
+  const body: unknown = await c.req.json().catch(() => null)
+  const messages = validateMessages(body)
 
   if (!messages) {
-    res.status(400).json({
-      error: `messages must be a non-empty array of { role, content } items, each with role in ${[...VALID_ROLES].join('|')} and non-empty content up to ${MAX_MESSAGE_LENGTH} characters`,
-      code: codeForStatus(400),
-    })
-    return
+    return c.json({ error: VALIDATION_ERROR_MESSAGE, code: codeForStatus(400) }, 400)
   }
 
-  const abortController = new AbortController()
+  return streamSSE(c, async (stream) => {
+    const abortController = new AbortController()
+    stream.onAbort(() => abortController.abort())
 
-  res.on('close', () => {
-    if (!res.writableEnded) {
-      abortController.abort()
+    const send = (event: ChatStreamEvent) => stream.writeSSE({ data: JSON.stringify(event) })
+
+    try {
+      for await (const delta of streamChatReply(messages, abortController.signal, c.env)) {
+        await send({ type: 'text', value: delta })
+      }
+
+      if (!abortController.signal.aborted) {
+        await send({ type: 'done' })
+      }
+    } catch (error) {
+      const status = error instanceof HttpError ? error.status : 502
+      const message = error instanceof HttpError ? error.message : 'The AI provider failed to generate a response'
+      await send({ type: 'error', message, code: codeForStatus(status) })
     }
   })
-
-  res.status(200)
-  res.setHeader('Content-Type', 'text/event-stream')
-  res.setHeader('Cache-Control', 'no-cache')
-  res.setHeader('Connection', 'keep-alive')
-  res.flushHeaders()
-
-  const send = (event: ChatStreamEvent) => {
-    if (res.writableEnded) {
-      return
-    }
-
-    res.write(`data: ${JSON.stringify(event)}\n\n`)
-  }
-
-  try {
-    for await (const delta of streamChatReply(messages, abortController.signal)) {
-      send({ type: 'text', value: delta })
-    }
-
-    if (!abortController.signal.aborted) {
-      send({ type: 'done' })
-    }
-  } catch (error) {
-    const status = error instanceof HttpError ? error.status : 502
-    const message = error instanceof HttpError ? error.message : 'The AI provider failed to generate a response'
-    send({ type: 'error', message, code: codeForStatus(status) })
-  } finally {
-    if (!res.writableEnded) {
-      res.end()
-    }
-  }
 }

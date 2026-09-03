@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Environment variables / secrets
+.env
+.env.*
+.dev.vars
+!.env.example
+
+# Build output
+dist/
+.wrangler/
+
+# Editor/OS
+.DS_Store
