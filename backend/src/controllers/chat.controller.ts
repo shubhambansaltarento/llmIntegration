@@ -1,54 +1,56 @@
 import type { Request, Response, NextFunction } from 'express'
-import type { ChatMessageInput, ChatRequestBody, ChatStreamEvent } from '../types/chat.types.js'
+import type {
+  ChatMessageInput,
+  ChatResponseBody,
+  ChatRole,
+  ChatStreamEvent,
+  ErrorResponseBody,
+} from '../types/chat.types.js'
 import { getChatReply, streamChatReply } from '../services/chat.service.js'
 import { HttpError, codeForStatus } from '../utils/errors.js'
 
 const MAX_MESSAGE_LENGTH = 4000
-const VALID_ROLES = new Set(['user', 'assistant', 'system'])
+const VALID_ROLES: readonly ChatRole[] = ['user', 'assistant', 'system']
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function isChatRole(value: unknown): value is ChatRole {
+  return typeof value === 'string' && (VALID_ROLES as readonly string[]).includes(value)
+}
 
 function validateMessages(body: unknown): ChatMessageInput[] | null {
-  if (typeof body !== 'object' || body === null || !('messages' in body)) {
-    return null
-  }
-
-  const { messages } = body as { messages: unknown }
-
-  if (!Array.isArray(messages) || messages.length === 0) {
+  if (!isRecord(body) || !Array.isArray(body.messages) || body.messages.length === 0) {
     return null
   }
 
   const normalized: ChatMessageInput[] = []
 
-  for (const item of messages) {
-    if (typeof item !== 'object' || item === null) {
+  for (const item of body.messages) {
+    if (!isRecord(item) || !isChatRole(item.role) || typeof item.content !== 'string') {
       return null
     }
 
-    const { role, content } = item as { role: unknown; content: unknown }
-
-    if (typeof role !== 'string' || !VALID_ROLES.has(role)) {
-      return null
-    }
-
-    if (typeof content !== 'string') {
-      return null
-    }
-
-    const trimmed = content.trim().replace(/\s+/g, ' ')
+    const trimmed = item.content.trim().replace(/\s+/g, ' ')
 
     if (trimmed.length === 0 || trimmed.length > MAX_MESSAGE_LENGTH) {
       return null
     }
 
-    normalized.push({ role: role as ChatMessageInput['role'], content: trimmed })
+    normalized.push({ role: item.role, content: trimmed })
   }
 
   return normalized
 }
 
 export async function postChat(
-  req: Request<unknown, unknown, ChatRequestBody>,
-  res: Response,
+  // The body generic stops at `unknown`, not `ChatRequestBody`: Express
+  // performs no runtime validation matching that generic, so asserting
+  // ChatRequestBody here would be a claim the type checker can't back up -
+  // validateMessages() below is what actually establishes the shape.
+  req: Request<unknown, unknown, unknown>,
+  res: Response<ChatResponseBody | ErrorResponseBody>,
   next: NextFunction,
 ) {
   const messages = validateMessages(req.body)
@@ -71,7 +73,7 @@ export async function postChat(
 }
 
 export async function postChatStream(
-  req: Request<unknown, unknown, ChatRequestBody>,
+  req: Request<unknown, unknown, unknown>,
   res: Response,
 ) {
   const messages = validateMessages(req.body)

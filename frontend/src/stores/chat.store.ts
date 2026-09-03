@@ -1,16 +1,8 @@
 import { createStore } from 'solid-js/store'
 import type { Conversation, Message } from '../types/conversation'
-import type { ChatMessagePayload } from '../services/chat.service'
-import { streamChatMessage, ApiError, type ApiErrorCode } from '../services/chat-stream.service'
+import { ApiError, type ApiErrorCode, type ChatMessagePayload } from '../services/chat.service'
+import { streamChatMessage } from '../services/chat-stream.service'
 import { showToast } from '../components/feedback/Toast'
-
-export type ChatStatus =
-  | 'idle'
-  | 'thinking'
-  | 'streaming'
-  | 'completed'
-  | 'error'
-  | 'cancelled'
 
 export type ChatErrorKind = 'network' | 'rate_limit' | 'server'
 
@@ -22,12 +14,30 @@ export interface ChatError {
   detail?: string
 }
 
+/**
+ * A discriminated union rather than a bare status string + a parallel
+ * `error: ChatError | null` field. With those as separate fields, nothing
+ * stops `{ chatStatus: 'idle', error: someError }` or `{ chatStatus:
+ * 'error', error: null }` from type-checking, even though only one status
+ * should ever carry an error - every read of `error` then needs a defensive
+ * `?.`/`??` to guard against a null that "shouldn't" happen. Folding the
+ * payload into the variant that actually has one makes that state
+ * unrepresentable: `chatStatus.kind === 'error'` narrows `chatStatus.error`
+ * to `ChatError`, no optional chaining required.
+ */
+export type ChatStatus =
+  | { kind: 'idle' }
+  | { kind: 'thinking' }
+  | { kind: 'streaming' }
+  | { kind: 'completed' }
+  | { kind: 'error'; error: ChatError }
+  | { kind: 'cancelled' }
+
 interface ChatState {
   conversations: Conversation[]
   activeConversationId: string | null
   input: string
   chatStatus: ChatStatus
-  error: ChatError | null
   /** Which conversation/message `chatStatus` currently describes, so the UI
    *  only shows thinking/streaming/error/cancelled affordances next to the
    *  request they actually belong to - not whichever conversation happens
@@ -51,8 +61,7 @@ const [chatState, setChatState] = createStore<ChatState>({
   conversations: initialConversations,
   activeConversationId: initialConversations[0]?.id ?? null,
   input: '',
-  chatStatus: 'idle',
-  error: null,
+  chatStatus: { kind: 'idle' },
   streamingConversationId: null,
   streamingMessageId: null,
 })
@@ -186,8 +195,7 @@ async function runRequest(
   pendingRequest = { conversationId, assistantMessageId, history }
 
   setChatState({
-    chatStatus: 'thinking',
-    error: null,
+    chatStatus: { kind: 'thinking' },
     streamingConversationId: conversationId,
     streamingMessageId: assistantMessageId,
   })
@@ -201,8 +209,8 @@ async function runRequest(
         onChunk: (delta) => {
           if (mySeq !== requestSeq) return
 
-          if (chatState.chatStatus !== 'streaming') {
-            setChatState('chatStatus', 'streaming')
+          if (chatState.chatStatus.kind !== 'streaming') {
+            setChatState('chatStatus', { kind: 'streaming' })
           }
 
           accumulated += delta
@@ -211,13 +219,13 @@ async function runRequest(
         onDone: () => {
           if (mySeq !== requestSeq) return
 
-          setChatState('chatStatus', 'completed')
+          setChatState('chatStatus', { kind: 'completed' })
         },
         onError: (message, code) => {
           if (mySeq !== requestSeq) return
 
           const chatError = classifyCode(code, message)
-          setChatState({ chatStatus: 'error', error: chatError })
+          setChatState('chatStatus', { kind: 'error', error: chatError })
           showToast(chatError.message, 'error')
         },
       },
@@ -230,7 +238,7 @@ async function runRequest(
     if (mySeq !== requestSeq) return
 
     const chatError = classifyThrownError(error)
-    setChatState({ chatStatus: 'error', error: chatError })
+    setChatState('chatStatus', { kind: 'error', error: chatError })
     showToast(chatError.message, 'error')
   } finally {
     if (mySeq === requestSeq) {
@@ -243,7 +251,11 @@ async function runRequest(
 function sendMessage(text: string) {
   const trimmed = text.trim()
 
-  if (!trimmed || chatState.chatStatus === 'thinking' || chatState.chatStatus === 'streaming') {
+  if (
+    !trimmed ||
+    chatState.chatStatus.kind === 'thinking' ||
+    chatState.chatStatus.kind === 'streaming'
+  ) {
     return
   }
 
@@ -290,14 +302,14 @@ function cancelGeneration() {
   activeController.abort()
   activeController = null
 
-  setChatState({ chatStatus: 'cancelled', error: null })
+  setChatState('chatStatus', { kind: 'cancelled' })
   showToast('Generation stopped.', 'info')
 }
 
 /** Resends the last failed request's exact history into the same assistant
  *  bubble - no duplicate user or assistant message is created. */
 function retry() {
-  if (chatState.chatStatus !== 'error' || !pendingRequest) return
+  if (chatState.chatStatus.kind !== 'error' || !pendingRequest) return
 
   const { conversationId, assistantMessageId, history } = pendingRequest
   updateMessage(conversationId, assistantMessageId, { content: '' })
@@ -318,7 +330,7 @@ function removeIfEmpty(conversationId: string, assistantMessageId: string) {
 
 /** Dismisses an error banner. */
 function dismissError() {
-  if (chatState.chatStatus !== 'error') return
+  if (chatState.chatStatus.kind !== 'error') return
 
   if (pendingRequest) {
     removeIfEmpty(pendingRequest.conversationId, pendingRequest.assistantMessageId)
@@ -326,8 +338,7 @@ function dismissError() {
 
   pendingRequest = null
   setChatState({
-    chatStatus: 'idle',
-    error: null,
+    chatStatus: { kind: 'idle' },
     streamingConversationId: null,
     streamingMessageId: null,
   })
@@ -336,7 +347,7 @@ function dismissError() {
 /** Acknowledges a cancelled generation and unblocks the composer, keeping
  *  whatever partial content was already streamed. */
 function continueAfterCancel() {
-  if (chatState.chatStatus !== 'cancelled') return
+  if (chatState.chatStatus.kind !== 'cancelled') return
 
   if (pendingRequest) {
     removeIfEmpty(pendingRequest.conversationId, pendingRequest.assistantMessageId)
@@ -344,7 +355,7 @@ function continueAfterCancel() {
 
   pendingRequest = null
   setChatState({
-    chatStatus: 'idle',
+    chatStatus: { kind: 'idle' },
     streamingConversationId: null,
     streamingMessageId: null,
   })

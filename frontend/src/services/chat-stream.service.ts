@@ -1,38 +1,45 @@
-import type { ChatMessagePayload } from './chat.service'
+import {
+  ApiError,
+  isApiErrorCode,
+  isRecord,
+  parseErrorResponse,
+  type ApiErrorCode,
+  type ChatMessagePayload,
+} from './chat.service'
 
 /**
- * Mirrors the backend's ErrorCode (backend/src/utils/errors.ts). Kept as a
- * plain string union rather than a shared package since these are two
- * independently deployable apps - if it drifts, TypeScript will flag call
- * sites that assume an exhaustive match.
+ * Discriminated union for the backend's SSE events (mirrors the backend's
+ * ChatStreamEvent in backend/src/types/chat.types.ts).
  */
-export type ApiErrorCode = 'rate_limit' | 'invalid_request' | 'server_error'
-
 type StreamEvent =
   | { type: 'text'; value: string }
   | { type: 'done' }
   | { type: 'error'; message: string; code?: ApiErrorCode }
 
+function isStreamEvent(value: unknown): value is StreamEvent {
+  if (!isRecord(value)) {
+    return false
+  }
+
+  switch (value.type) {
+    case 'text':
+      return typeof value.value === 'string'
+    case 'done':
+      return true
+    case 'error':
+      return (
+        typeof value.message === 'string' &&
+        (value.code === undefined || isApiErrorCode(value.code))
+      )
+    default:
+      return false
+  }
+}
+
 export interface StreamCallbacks {
   onChunk: (value: string) => void
   onDone: () => void
   onError: (message: string, code?: ApiErrorCode) => void
-}
-
-/**
- * Thrown for any non-2xx response or transport-level failure so callers can
- * branch on `code`/`status` instead of pattern-matching the message text.
- */
-export class ApiError extends Error {
-  code?: ApiErrorCode
-  status?: number
-
-  constructor(message: string, options?: { code?: ApiErrorCode; status?: number }) {
-    super(message)
-    this.name = 'ApiError'
-    this.code = options?.code
-    this.status = options?.status
-  }
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000'
@@ -66,11 +73,7 @@ export async function streamChatMessage(
   }
 
   if (!response.ok || !response.body) {
-    const body = await response.json().catch(() => null)
-    throw new ApiError(body?.error ?? `Request failed with status ${response.status}`, {
-      code: body?.code,
-      status: response.status,
-    })
+    throw await parseErrorResponse(response)
   }
 
   // response.body is a ReadableStream<Uint8Array> of raw network bytes.
@@ -112,10 +115,10 @@ export async function streamChatMessage(
         }
 
         const json = line.slice('data:'.length).trim()
-        let event: StreamEvent
+        let parsed: unknown
 
         try {
-          event = JSON.parse(json) as StreamEvent
+          parsed = JSON.parse(json)
         } catch {
           // A malformed event shouldn't take down the whole stream - skip
           // it and keep reading rather than throwing out of the loop.
@@ -123,12 +126,27 @@ export async function streamChatMessage(
           continue
         }
 
-        if (event.type === 'text') {
-          callbacks.onChunk(event.value)
-        } else if (event.type === 'error') {
-          callbacks.onError(event.message, event.code)
-        } else if (event.type === 'done') {
-          callbacks.onDone()
+        if (!isStreamEvent(parsed)) {
+          console.error('Received a malformed SSE event:', json)
+          continue
+        }
+
+        switch (parsed.type) {
+          case 'text':
+            callbacks.onChunk(parsed.value)
+            break
+          case 'error':
+            callbacks.onError(parsed.message, parsed.code)
+            break
+          case 'done':
+            callbacks.onDone()
+            break
+          default: {
+            // Exhaustiveness guard: if StreamEvent ever grows a new variant,
+            // this fails to compile until every case above handles it.
+            const exhaustiveCheck: never = parsed
+            throw new Error(`Unhandled stream event: ${JSON.stringify(exhaustiveCheck)}`)
+          }
         }
       }
     }

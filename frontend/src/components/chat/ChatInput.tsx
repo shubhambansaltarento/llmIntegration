@@ -3,7 +3,7 @@ import { chatState, setInput, sendMessage, cancelGeneration } from '../../stores
 
 function ChatInput() {
   const isBusy = () =>
-    chatState.chatStatus === 'thinking' || chatState.chatStatus === 'streaming'
+    chatState.chatStatus.kind === 'thinking' || chatState.chatStatus.kind === 'streaming'
 
   const handleSubmit = (event: SubmitEvent) => {
     event.preventDefault()

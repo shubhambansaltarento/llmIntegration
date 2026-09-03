@@ -19,9 +19,20 @@ function MessageList() {
     chatState.streamingConversationId === chatState.activeConversationId
 
   const isStreamingMessage = (messageId: string) =>
-    chatState.chatStatus === 'streaming' &&
+    chatState.chatStatus.kind === 'streaming' &&
     belongsToActiveConversation() &&
     chatState.streamingMessageId === messageId
+
+  // Narrows chatStatus down to just the 'error' variant (or undefined) so
+  // the callback-children Show below gets a value whose `.error` is
+  // statically known to exist - not a chatStatus.kind check followed by a
+  // separately-typed `chatState.error` that TypeScript can't prove is set.
+  const activeError = () => {
+    if (!belongsToActiveConversation() || chatState.chatStatus.kind !== 'error') {
+      return undefined
+    }
+    return chatState.chatStatus
+  }
 
   return (
     <div class="message-list">
@@ -50,28 +61,30 @@ function MessageList() {
         </For>
       </Show>
 
-      <Show when={belongsToActiveConversation() && chatState.chatStatus === 'thinking'}>
+      <Show when={belongsToActiveConversation() && chatState.chatStatus.kind === 'thinking'}>
         <LoadingIndicator />
       </Show>
 
-      <Show when={belongsToActiveConversation() && chatState.chatStatus === 'streaming'}>
+      <Show when={belongsToActiveConversation() && chatState.chatStatus.kind === 'streaming'}>
         <StreamingIndicator />
       </Show>
 
-      <Show when={belongsToActiveConversation() && chatState.chatStatus === 'error'}>
-        <ErrorMessage
-          variant="error"
-          title={chatState.error?.message ?? 'Something went wrong.'}
-          message={chatState.error?.detail}
-        >
-          <RetryButton onClick={retry} />
-          <button type="button" onClick={dismissError}>
-            Dismiss
-          </button>
-        </ErrorMessage>
+      <Show when={activeError()}>
+        {(status) => (
+          <ErrorMessage
+            variant="error"
+            title={status().error.message}
+            message={status().error.detail}
+          >
+            <RetryButton onClick={retry} />
+            <button type="button" onClick={dismissError}>
+              Dismiss
+            </button>
+          </ErrorMessage>
+        )}
       </Show>
 
-      <Show when={belongsToActiveConversation() && chatState.chatStatus === 'cancelled'}>
+      <Show when={belongsToActiveConversation() && chatState.chatStatus.kind === 'cancelled'}>
         <ErrorMessage variant="cancelled" title="Generation stopped.">
           <button type="button" onClick={continueAfterCancel}>
             Continue

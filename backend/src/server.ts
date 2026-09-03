@@ -18,7 +18,7 @@ app.use(express.json())
 app.use('/api', chatRoutes)
 app.use('/api', healthRoutes)
 
-const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
+const errorHandler: ErrorRequestHandler = (err: unknown, _req, res, _next) => {
   if (err instanceof HttpError) {
     res.status(err.status).json({ error: err.message, code: codeForStatus(err.status) })
     return

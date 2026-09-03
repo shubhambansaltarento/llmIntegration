@@ -5,4 +5,8 @@ import App from './App.tsx'
 
 const root = document.getElementById('root')
 
-render(() => <App />, root!)
+if (!root) {
+  throw new Error('Root element with id "root" was not found in index.html')
+}
+
+render(() => <App />, root)
