@@ -24,7 +24,7 @@ function ChatInput() {
         when={isBusy()}
         fallback={
           <button class="chat-input__send" type="submit" disabled={!chatState.input.trim()}>
-            Send tst
+            Send
           </button>
         }
       >
